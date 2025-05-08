@@ -43,10 +43,10 @@ contract ItsWednesdayMyDudes with Deployable {
         }
 
         if (self.participants.exists(sender())) {
-            self.reset();
             if (self.tryStartNewGame(letter)) {
                 self.reply("Already participated, start a new game".asComment());
             } else {
+                self.reset();
                 self.reply("Already participated".asComment());
             }
             return;

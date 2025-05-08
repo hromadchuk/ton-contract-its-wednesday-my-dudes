@@ -1,5 +1,5 @@
-import { Blockchain, SendMessageResult, TreasuryContract } from '@ton/sandbox';
-import { Address, Cell, toNano } from '@ton/core';
+import { Blockchain, TreasuryContract } from '@ton/sandbox';
+import { Address, toNano } from '@ton/core';
 import { ItsWednesdayMyDudes } from '../wrappers/ItsWednesdayMyDudes';
 import { BlockchainTransaction } from '@ton/sandbox';
 import '@ton/test-utils';
@@ -146,9 +146,40 @@ describe('ItsWednesdayMyDudes', () => {
         });
     });
 
-    describe('Make word', () => {
+    describe('Make phrase', () => {
         it('Write full', async () => {
-            const { contract, send } = await setup(WEDNESDAY);
+            const { contract, deployer, send } = await setup(WEDNESDAY);
+
+            await contract.send(deployer.getSender(), { value: toNano("0.1") }, 'TOP_UP');
+
+            expect(await contract.getGetLastCompletionWeek()).toBe(0n);
+
+            for (let i = 1; i <= PHRASE.length; i++) {
+                await send(i, PHRASE[i - 1]);
+                console.log('TEST', i, PHRASE[i - 1], await contract.getGetProgress());
+            }
+
+            expect(await contract.getGetLastCompletionWeek()).toBe(2818n);
+        });
+
+        it('Write full with lower letters', async () => {
+            const { contract, deployer, send } = await setup(WEDNESDAY);
+
+            await contract.send(deployer.getSender(), { value: toNano("0.1") }, 'TOP_UP');
+
+            expect(await contract.getGetLastCompletionWeek()).toBe(0n);
+
+            for (let i = 1; i <= PHRASE.length; i++) {
+                await send(i, PHRASE[i - 1].toLowerCase());
+            }
+
+            expect(await contract.getGetLastCompletionWeek()).toBe(2818n);
+        });
+
+        it('Write full with second attempt', async () => {
+            const { contract, deployer, send } = await setup(WEDNESDAY);
+
+            await contract.send(deployer.getSender(), { value: toNano("0.1") }, 'TOP_UP');
 
             expect(await contract.getGetLastCompletionWeek()).toBe(0n);
 
@@ -165,20 +196,10 @@ describe('ItsWednesdayMyDudes', () => {
             expect(await contract.getGetLastCompletionWeek()).toBe(2818n);
         });
 
-        it('Write full with second attempt', async () => {
-            const { contract, send } = await setup(WEDNESDAY);
-
-            expect(await contract.getGetLastCompletionWeek()).toBe(0n);
-
-            for (let i = 1; i <= PHRASE.length; i++) {
-                await send(i, PHRASE[i - 1]);
-            }
-
-            expect(await contract.getGetLastCompletionWeek()).toBe(2818n);
-        });
-
         it('Try write second word', async () => {
-            const { contract, send } = await setup(WEDNESDAY);
+            const { contract, deployer, send } = await setup(WEDNESDAY);
+
+            await contract.send(deployer.getSender(), { value: toNano("0.1") }, 'TOP_UP');
 
             expect(await contract.getGetLastCompletionWeek()).toBe(0n);
 
@@ -215,7 +236,7 @@ describe('ItsWednesdayMyDudes', () => {
 
     describe('Check incorrect message', () => {
         const days = [
-            ['Empty', ''],
+            ['Empty string', ''],
             ['Single ukrainian letter', 'ї'],
             ['Single ukrainian letter', 'а'],
             ['Single russian letter', 'ё'],
