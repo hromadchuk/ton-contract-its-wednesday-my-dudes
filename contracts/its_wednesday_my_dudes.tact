@@ -1,28 +1,35 @@
 import "@stdlib/deploy";
 
-const PHRASE: String = "ITSWEDNESDAYMYDUDES";
-
 contract ItsWednesdayMyDudes with Deployable {
+    phrase: String = "ITSWEDNESDAYMYDUDES";
     progress: Int as uint5 = 0;
     participants: map<Address, Bool> = emptyMap();
     lastCompletionWeek: Int as uint14 = 0;
 
-    receive(str: String) {
+    receive() {
+        self.reply("Exactly one letter required".asComment());
+    }
+
+    receive(message: String) {
+        if (message == "TOP_UP") {
+            return;
+        }
+
         let weekday = ((now() / 86400) + 4) % 7;
         if (weekday != 3) {
-            self.sendError("Not Wednesday");
+            self.reply("Not Wednesday".asComment());
             return;
         }
 
         let curWeek = ((now() / 86400) + 4) / 7;
         if (self.lastCompletionWeek == curWeek) {
-            self.sendError("Already completed this Wednesday");
+            self.reply("Already completed this Wednesday".asComment());
             return;
         }
 
-        let letters = str.asSlice();
+        let letters = message.asSlice();
         if (letters.bits() != 8) {
-            self.sendError("Exactly one letter required");
+            self.reply("Exactly one letter required".asComment());
             return;
         }
 
@@ -31,15 +38,16 @@ contract ItsWednesdayMyDudes with Deployable {
             letter -= 32;
         }
         if (letter < 65 || letter > 90) {
-            self.sendError("Only A‑Z letters accepted");
+            self.reply("Only A‑Z letters accepted".asComment());
             return;
         }
 
         if (self.participants.exists(sender())) {
             self.reset();
-            commit();
-            if (!self.tryStartNewGame(letter, sender())) {
-                self.sendError("Already participated")
+            if (self.tryStartNewGame(letter)) {
+                self.reply("Already participated, start a new game".asComment());
+            } else {
+                self.reply("Already participated".asComment());
             }
             return;
         }
@@ -49,35 +57,49 @@ contract ItsWednesdayMyDudes with Deployable {
             self.participants.set(sender(), true);
             self.progress += 1;
 
-            if (self.progress == 19) {
+            if (self.progress == (self.phrase.asSlice().bits() / 8)) {
                 self.lastCompletionWeek = curWeek;
+                self.broadcastVictory();
                 self.reset();
+            } else {
+                self.reply("Got it!".asComment());
             }
-
-            cashback(sender());
             return;
         }
 
-        self.reset();
-        commit();
-
-        if (!self.tryStartNewGame(letter, sender())) {
-            self.sendError("Wrong letter — sequence reset");
+        if (self.tryStartNewGame(letter)) {
+            self.reply("Wrong letter, start a new game".asComment());
+        } else {
+            self.reset();
+            self.reply("Wrong letter, sequence reset".asComment());
         }
     }
 
-    fun tryStartNewGame(letter: Int, address: Address): Bool {
-        if (letter == PHRASE.asSlice().loadUint(8)) {
+    fun tryStartNewGame(letter: Int): Bool {
+        if (letter == self.phrase.asSlice().loadUint(8)) {
             self.progress = 1;
             self.participants = emptyMap();
-            self.participants.set(address, true);
-
-            cashback(address);
+            self.participants.set(sender(), true);
 
             return true;
         }
 
         return false;
+    }
+
+    fun broadcastVictory() {
+        let body = "YEAH! WE DID IT!".asComment();
+        let mode = SendRemainingValue + SendPayFwdFeesSeparately;
+
+        foreach (address, state in self.participants) {
+            send(SendParameters{
+                to: address,
+                value: 0,
+                bounce: false,
+                mode: mode,
+                body: body
+            });
+        }
     }
 
     fun reset() {
@@ -86,25 +108,13 @@ contract ItsWednesdayMyDudes with Deployable {
     }
 
     fun letterAt(i: Int): Int {
-        let word: Slice = PHRASE.asSlice();
+        let word: Slice = self.phrase.asSlice();
         let offset: Int = i;
         while (offset > 0) {
             word.loadUint(8);
             offset -= 1;
         }
         return word.loadUint(8);
-    }
-
-    fun sendError(reason: String) {
-        let body: Cell = reason.asComment();
-
-        send(SendParameters{
-            to: sender(),
-            value: 0,
-            bounce: true,
-            mode: SendRemainingValue + 64,
-            body: body
-        });
     }
 
     get fun getProgress(): Int {
