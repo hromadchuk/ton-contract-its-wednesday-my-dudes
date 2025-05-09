@@ -53,8 +53,6 @@ await client.sendInternalMessage({
 });
 ```
 
----
-
 ## 🔍 Contract API
 
 | Getter                    | Description                                             | Return type         |
